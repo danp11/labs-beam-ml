@@ -20,7 +20,9 @@ public class Python3DoFn extends DoFn<IndexedRecord, IndexedRecord> {
 
     private Python3Configuration configuration = null;
 
-    private transient final LuciDoItDoItInvoker invoker  = null;
+    private static final String sessionId = LuciDoItDoItInvoker.createSessionId();
+
+    private transient LuciDoItDoItInvoker invoker = null;
 
     Python3DoFn withConfiguration(Python3Configuration configuration) {
         this.configuration = configuration;
@@ -33,12 +35,14 @@ public class Python3DoFn extends DoFn<IndexedRecord, IndexedRecord> {
 
     @ProcessElement
     public void processElement(ProcessContext context) throws IOException {
+        if (invoker == null)
+            invoker = LuciDoItDoItInvoker.of(sessionId);
+        if (!invoker.isPythonServerUnpacked())
+            invoker.unpackPythonServerFiles();
         context.output(context.element());
     }
 
     @Teardown
     public void tearDown() {
-
     }
-
 }
