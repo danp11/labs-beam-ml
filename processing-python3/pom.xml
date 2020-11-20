@@ -5,7 +5,8 @@
   <parent>
     <groupId>org.talend.components</groupId>
     <artifactId>cloud-components</artifactId>
-    <version>1.16.0-SNAPSHOT</version>
+    <version>1.15.0</version>
+    <relativePath />
   </parent>
 
   <artifactId>processing-python3</artifactId>
@@ -15,6 +16,8 @@
   <properties>
     <!-- Lolz the Tacokit validation excludes Beam -->
     <validation.model>false</validation.model>
+    <avro.version>1.8.2</avro.version>
+    <lucidoitdoit.project.basedir>${project.basedir}/../lucidoitdoit/</lucidoitdoit.project.basedir>
   </properties>
 
   <dependencies>
@@ -51,6 +54,13 @@
 
   </dependencies>
 
+  <repositories>
+    <repository>
+      <id>talend_nexus_deployment</id>
+      <url>https://artifacts-zl.talend.com/nexus/content/repositories/releases/</url>
+    </repository>
+  </repositories>
+
   <build>
     <resources>
       <resource>
@@ -63,5 +73,25 @@
         </includes>
       </resource>
     </resources>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.avro</groupId>
+        <artifactId>avro-maven-plugin</artifactId>
+        <version>${avro.version}</version>
+        <executions>
+          <execution>
+            <phase>generate-sources</phase>
+            <goals>
+              <goal>schema</goal>
+              <goal>protocol</goal>
+              <goal>idl-protocol</goal>
+            </goals>
+            <configuration>
+              <sourceDirectory>${lucidoitdoit.project.basedir}</sourceDirectory>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
   </build>
 </project>

@@ -1,0 +1,76 @@
+/**
+
+ The set of Avro messages that the LuciDoItServer understands.
+
+ IDL is a simpler, more readable record format that Avro JSON, but is not (yet) managed by
+ python code.  This test resource can be used to generate the AVSC resource inside the related
+ python project.
+
+ The lucidoitdoit/protocol.avsc is the *definitive* source for communication, but is generated
+ from the record in this test resource.
+
+ The org.talend.components.processing.python3.luci.LuciProtocolTest verifies that the two are
+ consistent.
+
+ To make a change to the protocol:
+
+ 1. Update this IDL file.
+ 2. Run the LuciProtocolTest.  It should fail, but overwrite the existing resource.
+ 3. Rebuild and re-run unit tests from end-to-end (python and Java modules).  It should succeed.
+ 4. Check in the changes.
+
+ The namespace from this test resource is rewritten to lucidoitdoit when it has been updated.
+
+ */
+@namespace("lucitesttest")
+protocol LuciProtocol {
+
+  /** A generic response to the a message. */
+  record LuciResponse {
+    long status;
+    string message;
+    map<string> parameters;
+  }
+
+  /** Registers UDF code with the server. */
+  record RegisterUdf {
+    /** Yikes*/
+    string udf;
+  }
+
+  /** Use the specified registered UDF as the default from now on. */
+  record UseDefaultUdf {
+    /** The registered ID for the UDF to use from now on. */
+    string udf_id;
+  }
+
+  /** Processes the specified element. */
+  record ProcessElement {
+    /** The registered ID for the UDF to use. */
+    union { null, string } udf_id;
+    /** The data as bytes. */
+    bytes datum;
+  }
+
+  /** Emitted element as a result of processing. */
+  record ProcessElementResponse {
+    /** The data as bytes. */
+    bytes datum;
+  }
+
+  /** Server shutdown requested.  This should turn off and clean up the server permanently. */
+  record Shutdown {
+  }
+
+  /** All of the possible control messages, grouped together. */
+  record All {
+    union {
+       LuciResponse,
+       RegisterUdf,
+       UseDefaultUdf,
+       ProcessElement,
+       ProcessElementResponse,
+       Shutdown
+    } all;
+  }
+}
