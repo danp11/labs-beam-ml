@@ -13,8 +13,8 @@ package org.talend.components.processing.python3;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.beam.sdk.transforms.DoFnTester;
-import org.junit.BeforeClass;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
 import org.talend.daikon.avro.GenericDataRecordHelper;
 
 import java.io.IOException;
@@ -32,7 +32,7 @@ public class Python3DoFnTest {
     private static String utf8Sample = "Les naïfs ægithales hâtifs pondant à Noël où il gèle sont sûrs d'être "
             + "déçus en voyant leurs drôles d'œufs abîmés.";
 
-    @BeforeClass
+    @BeforeAll
     public static void setUp() throws IOException {
         Object[] inputAsObject1 = new Object[] { "rootdata",
                 new Object[] { "subdata", new Object[] { "subsubdata1", 28, 42l }, "subdata2" } };
