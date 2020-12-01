@@ -12,11 +12,11 @@ package org.talend.components.processing.python3.luci;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.talend.components.processing.python3.Python3;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.Closeable;
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -24,6 +24,7 @@ import java.io.InputStream;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.DirectoryNotEmptyException;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -36,17 +37,20 @@ import java.util.zip.ZipInputStream;
 /** Sets up a connection to a Python3 server. */
 public class LuciDoItDoItInvoker implements Closeable {
 
-    public static final Path DEFAULT_ROOT_STORAGE_PATH = Paths.get("/tmp", "luci");
+    public static final Path DEFAULT_LUCI_PATH = Paths.get("/tmp", "luci");
 
-    public static final Path INSTALL_WHL_NAME = Paths.get("cache", "lucidoitdoit-0.1-py3-none-any.whl");
+    /** Relative to the root storage path, where shared files are stored. */
+    public static final Path GLOBAL_FILES = Paths.get("global", "files");
 
-    public static final Path INSTALL_SETUP_NAME = Paths.get("cache", "lucisetup");
+    public static final String INSTALL_WHL_NAME = "lucidoitdoit-0.1-py3-none-any.whl";
 
-    public static final Path SESSION_SOCKET_NAME = Paths.get("lucidoitdoit.socket");
+    public static final String INSTALL_SETUP_NAME = "lucisetup";
 
-    public static final Path SESSION_PID_NAME = Paths.get("lucidoitdoit.pid");
+    public static final String SESSION_SOCKET_NAME = "lucidoitdoit.socket";
 
-    private static final Logger log = LoggerFactory.getLogger(Python3.Migration.class);
+    public static final String SESSION_PID_NAME = "lucidoitdoit.pid";
+
+    private static final Logger log = LoggerFactory.getLogger(LuciDoItDoItInvoker.class);
 
     /** Used to construct a session ID. */
     private static final char[] RND = "abcdefghijklmnopqrstvwxyz0123456789".toCharArray();
@@ -61,20 +65,17 @@ public class LuciDoItDoItInvoker implements Closeable {
      */
     private final String sessionId;
 
-    /** On-disk storage location for all generated files. */
-    private final Path rootStorageDir;
+    /** On-disk storage location for all generated files for the python server. */
+    private final Path luciDir;
 
-    /** On-disk location for the server wheel to be installed. */
-    private final Path installWhl;
+    /** On-disk storage location for shared files. */
+    private final Path globalFileDir;
+
+    /** On-disk storage location for the session. */
+    private final Path sessionDir;
 
     /** On-disk location for the server setup script. */
     private final Path installSetup;
-
-    /**
-     * On-disk path for the current session. This should contain the entire environment for the
-     * Python3 server.
-     */
-    private final Path sessionEnvironment;
 
     private Process luciProcess = null;
 
@@ -82,27 +83,12 @@ public class LuciDoItDoItInvoker implements Closeable {
 
     private Socket socket = null;
 
-    private LuciDoItDoItInvoker(String sessionId, Path rootStorageDir, Path installWhl, Path installSetup) {
+    public LuciDoItDoItInvoker(String sessionId, Path rootStorageDir) {
         this.sessionId = sessionId;
-        this.rootStorageDir = rootStorageDir.toAbsolutePath();
-        this.sessionEnvironment = this.rootStorageDir.resolve(sessionId);
-        this.installWhl = installWhl.toAbsolutePath();
-        this.installSetup = installSetup.toAbsolutePath();
-    }
-
-    public static LuciDoItDoItInvoker of(String sessionId) {
-        return of(DEFAULT_ROOT_STORAGE_PATH, sessionId);
-    }
-
-    public static LuciDoItDoItInvoker of(Path rootStorageDir, String sessionId) {
-        return of(sessionId, rootStorageDir, null, null);
-    }
-
-    public static LuciDoItDoItInvoker of(String sessionId, Path rootStorageDir, String whlName, String setupName) {
-        rootStorageDir = rootStorageDir != null ? rootStorageDir : DEFAULT_ROOT_STORAGE_PATH;
-        return new LuciDoItDoItInvoker(sessionId, rootStorageDir,
-                rootStorageDir.resolve(whlName != null ? Paths.get(whlName) : INSTALL_WHL_NAME),
-                rootStorageDir.resolve(whlName != null ? Paths.get(setupName) : INSTALL_SETUP_NAME));
+        this.luciDir = (rootStorageDir != null ? rootStorageDir : DEFAULT_LUCI_PATH).toAbsolutePath();
+        this.sessionDir = this.luciDir.resolve(sessionId);
+        this.globalFileDir = this.luciDir.resolve(GLOBAL_FILES);
+        this.installSetup = this.globalFileDir.resolve(INSTALL_SETUP_NAME).toAbsolutePath();
     }
 
     /** @return a session ID for the PythonServerInvoker. */
@@ -119,7 +105,9 @@ public class LuciDoItDoItInvoker implements Closeable {
      * to start a server.
      */
     public boolean isPythonServerUnpacked() {
-        return Files.exists(installWhl) && Files.exists(installSetup);
+        // This is the last step of unpacking the server files, so if it exists, the filesystem
+        // must be unpacked.
+        return Files.exists(installSetup);
     }
 
     /**
@@ -132,18 +120,19 @@ public class LuciDoItDoItInvoker implements Closeable {
     public void unpackPythonServerFiles() throws IOException {
 
         // Get the wheel as a resource on the classpath.
-        try (InputStream src = LuciDoItDoItInvoker.class.getClassLoader()
-                .getResourceAsStream(installWhl.getFileName().toString())) {
+        try (InputStream src = LuciDoItDoItInvoker.class.getClassLoader().getResourceAsStream(INSTALL_WHL_NAME)) {
             if (src == null) {
-                throw new IOException("Bad setup, missing " + installWhl.getFileName().toString());
+                throw new IOException("Bad setup, missing " + INSTALL_WHL_NAME);
             }
 
             byte[] buf = new byte[8192];
-            Files.createDirectories(installWhl.getParent());
-            Files.createDirectories(installSetup.getParent());
+            Files.createDirectories(globalFileDir);
 
-            // Copy the wheel to its final destination.
-            try (FileOutputStream dst = new FileOutputStream(installWhl.toFile())) {
+            File tmpWhl = File.createTempFile("luci.wheel", "tmp");
+            File tmpSetup = File.createTempFile("luci.setup", "tmp");
+
+            // Extract the wheel to a temporary destination.
+            try (FileOutputStream dst = new FileOutputStream(tmpWhl)) {
                 int length;
                 while ((length = src.read(buf)) > 0) {
                     dst.write(buf, 0, length);
@@ -151,12 +140,12 @@ public class LuciDoItDoItInvoker implements Closeable {
             }
 
             // Read inside the wheel to find the setup script.
-            try (FileInputStream whl = new FileInputStream(installWhl.toFile());
+            try (FileInputStream whl = new FileInputStream(tmpWhl);
                     ZipInputStream zis = new ZipInputStream(new BufferedInputStream(whl))) {
                 ZipEntry ze;
                 while ((ze = zis.getNextEntry()) != null) {
                     if (installSetup.getFileName().equals(Paths.get(ze.getName()).getFileName())) {
-                        try (FileOutputStream fos = new FileOutputStream(installSetup.toFile());
+                        try (FileOutputStream fos = new FileOutputStream(tmpSetup);
                                 BufferedOutputStream bos = new BufferedOutputStream(fos, buf.length)) {
                             int length;
                             while ((length = zis.read(buf)) > 0) {
@@ -167,16 +156,21 @@ public class LuciDoItDoItInvoker implements Closeable {
                     }
                 }
             }
-        }
-    }
 
-    /**
-     * Clean up the resources from unpacking the python server files on the filesystem.
-     *
-     * @throws IOException if the files could not be removed.
-     */
-    public boolean cleanPythonServerFiles() throws IOException {
-        return cleanFile(installWhl) | cleanFile(installSetup);
+            // Move both files to their final locations
+            try {
+                Files.move(tmpWhl.toPath(), globalFileDir.resolve(INSTALL_WHL_NAME));
+            } catch (FileAlreadyExistsException ignored) {
+                // If it already exists, then another thread or process installed it in the meantime.
+                Files.delete(tmpWhl.toPath());
+            }
+            try {
+                Files.move(tmpSetup.toPath(), installSetup);
+            } catch (FileAlreadyExistsException ignored) {
+                // If it already exists, then another thread or process installed it in the meantime.
+                Files.delete(tmpWhl.toPath());
+            }
+        }
     }
 
     public boolean isServerStarted() {
@@ -186,19 +180,18 @@ public class LuciDoItDoItInvoker implements Closeable {
             return false;
 
         // Check that all of the files exist.
-        boolean sessionEnvironmentExists = Files.exists(sessionEnvironment);
-        boolean sessionSocketFileExists = Files.exists(sessionEnvironment.resolve(SESSION_SOCKET_NAME));
-        boolean sessionPidFileExists = Files.exists(sessionEnvironment.resolve(SESSION_PID_NAME));
+        boolean sessionDirExists = Files.exists(sessionDir);
+        boolean sessionSocketFileExists = Files.exists(sessionDir.resolve(SESSION_SOCKET_NAME));
+        boolean sessionPidFileExists = Files.exists(sessionDir.resolve(SESSION_PID_NAME));
 
-        log.debug("Session environment path: {} ({})", sessionEnvironment.toString(), sessionEnvironmentExists);
-        log.debug("Session socket file     : {} ({})", sessionEnvironment.toString(), sessionSocketFileExists);
-        log.debug("Session pid file        : {} ({})", sessionEnvironment.toString(), sessionPidFileExists);
-        if (!sessionEnvironmentExists || !sessionSocketFileExists || !sessionPidFileExists)
+        log.debug("Session environment path: {} ({})", sessionDir.toString(), sessionDir);
+        log.debug("Session socket file     : {} ({})", sessionDir.resolve(SESSION_SOCKET_NAME).toString(),
+                sessionSocketFileExists);
+        log.debug("Session pid file        : {} ({})", sessionDir.resolve(SESSION_PID_NAME), sessionPidFileExists);
+        if (!sessionDirExists || !sessionSocketFileExists || !sessionPidFileExists)
             return false;
 
-        if (luciProcess.isAlive()) {
-            // Check that the pid is alive, and that the socket is serving.
-        }
+        // Try to connect to
 
         return false;
     }
@@ -215,7 +208,8 @@ public class LuciDoItDoItInvoker implements Closeable {
         ProcessBuilder pb = new ProcessBuilder(Arrays.asList(installSetup.toString(), sessionId));
 
         HashMap<String, String> env = new HashMap<>();
-        env.put("LUCIDOITDOIT_WHL", installWhl.toString());
+        env.put("LUCIDOITDOIT_WHL", globalFileDir.resolve(INSTALL_WHL_NAME).toString());
+        env.put("LUCIDOITDOIT_ENV", globalFileDir.resolve("env").toString());
         pb.environment().putAll(env);
 
         // TODO: Set up the process as you want, logs, etc.
@@ -227,7 +221,7 @@ public class LuciDoItDoItInvoker implements Closeable {
         luciProcess = pb.start();
 
         // Wait for this file to exist before continuing.
-        String contents = readFromFile(sessionEnvironment.resolve(SESSION_SOCKET_NAME), 10, 1000);
+        String contents = readFromFile(sessionDir.resolve(SESSION_SOCKET_NAME), 10, 1000);
         port = Integer.valueOf(contents.trim());
     }
 
@@ -237,13 +231,13 @@ public class LuciDoItDoItInvoker implements Closeable {
             return;
 
         // If the files already exist, then skip this step.
-        if (!Files.exists(installWhl) || !Files.exists(installSetup))
+        if (!Files.exists(globalFileDir.resolve(INSTALL_WHL_NAME)) || !Files.exists(installSetup))
             unpackPythonServerFiles();
 
         ProcessBuilder pb = new ProcessBuilder(Arrays.asList(installSetup.toString(), sessionId));
 
         HashMap<String, String> env = new HashMap<>();
-        env.put("LUCIDOITDOIT_WHL", installWhl.toString());
+        env.put("LUCIDOITDOIT_WHL", globalFileDir.resolve(INSTALL_WHL_NAME).toString());
         pb.environment().putAll(env);
 
         // TODO: Set up the process as you want, logs, etc.
@@ -255,7 +249,7 @@ public class LuciDoItDoItInvoker implements Closeable {
         luciProcess = pb.start();
 
         // Wait for this file to exist before continuing.
-        String contents = readFromFile(sessionEnvironment.resolve(SESSION_SOCKET_NAME), 10, 1000);
+        String contents = readFromFile(sessionDir.resolve(SESSION_SOCKET_NAME), 10, 1000);
         port = Integer.valueOf(contents.trim());
     }
 
@@ -316,7 +310,7 @@ public class LuciDoItDoItInvoker implements Closeable {
     private boolean cleanFile(Path file) throws IOException {
         boolean anyFileDeleted = false;
         try {
-            while (file.startsWith(rootStorageDir)) {
+            while (file.startsWith(globalFileDir)) {
                 anyFileDeleted |= Files.deleteIfExists(file);
                 file = file.getParent();
             }

@@ -36,7 +36,7 @@ public class Python3DoFn extends DoFn<IndexedRecord, IndexedRecord> {
     @ProcessElement
     public void processElement(ProcessContext context) throws IOException {
         if (invoker == null)
-            invoker = LuciDoItDoItInvoker.of(sessionId);
+            invoker = new LuciDoItDoItInvoker(sessionId, null);
         if (!invoker.isPythonServerUnpacked())
             invoker.unpackPythonServerFiles();
         context.output(context.element());

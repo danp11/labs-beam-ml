@@ -29,7 +29,7 @@
       "fields" : [ {
         "name" : "udf",
         "type" : "string",
-        "doc" : "Yikes"
+        "doc" : "The code registered to be executed."
       } ]
     }, {
       "type" : "record",

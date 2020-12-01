@@ -34,7 +34,7 @@ protocol LuciProtocol {
 
   /** Registers UDF code with the server. */
   record RegisterUdf {
-    /** Yikes*/
+    /** The code registered to be executed. */
     string udf;
   }
 
