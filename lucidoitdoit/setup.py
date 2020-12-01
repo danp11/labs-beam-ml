@@ -41,7 +41,7 @@ setup(
         "lucidoitdoit": ["protocol.avsc"],
     },
     scripts=["bin/lucidoitdoit", "bin/lucisetup"],
-    install_requires=["avro==1.10.0", "docopt==0.6.2"],
+    install_requires=["avro==1.10.0", "docopt==0.6.2", "RestrictedPython==5.1"],
     classifiers=[
         "Development Status :: 3 - Alpha",
         "License :: OSI Approved :: Apache Software License",

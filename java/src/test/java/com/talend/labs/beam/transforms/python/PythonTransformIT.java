@@ -18,6 +18,7 @@ import org.junit.runners.JUnit4;
 
 @Ignore
 @RunWith(JUnit4.class)
+@Ignore
 public class PythonTransformIT {
 
   public interface PythonTransformITOptions extends PipelineOptions {
@@ -37,7 +38,6 @@ public class PythonTransformIT {
     String integrationTestPipelineOptions = System.getenv("integrationTestPipelineOptions");
     System.out.println(integrationTestPipelineOptions);
     System.out.println(options.getServerInvokerPath());
-    System.exit(0);
   }
 
   @Test

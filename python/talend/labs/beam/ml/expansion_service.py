@@ -15,10 +15,13 @@ from apache_beam.runners.portability import expansion_service
 from apache_beam.transforms import ptransform
 from apache_beam.utils.thread_pool_executor import UnboundedThreadPoolExecutor
 
-from random import randint
-
 _LOGGER = logging.getLogger(__name__)
 
+class _UppercaseFn(beam.DoFn):
+    def process(self, element):
+        input = element.split(',')
+        output = input[3].upper()
+        return [("key", str(output))]
 
 class _RandomGenreClassifierFn(beam.DoFn):
     def process(self, element):
@@ -47,6 +50,21 @@ class GenreClassifier(ptransform.PTransform):
     @staticmethod
     def from_runner_api_parameter(unused_ptransform, unused_parameter, unused_context):
         return GenreClassifier()
+
+@ptransform.PTransform.register_urn('talend:labs:ml:uppercase:python:v1', None)
+class Uppercase(ptransform.PTransform):
+    def __init__(self):
+        super(Uppercase, self).__init__()
+
+    def expand(self, pcoll):
+        return pcoll | "Uppercase" >> beam.ParDo(_UppercaseFn())
+
+    def to_runner_api_parameter(self, unused_context):
+        return 'talend:labs:ml:uppercase:python:v1', None
+
+    @staticmethod
+    def from_runner_api_parameter(unused_ptransform, unused_parameter, unused_context):
+        return Uppercase()
 
 
 server = None

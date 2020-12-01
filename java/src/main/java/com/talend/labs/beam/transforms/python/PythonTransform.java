@@ -1,13 +1,14 @@
 package com.talend.labs.beam.transforms.python;
 
 import javax.annotation.Nullable;
-import org.apache.beam.runners.core.construction.ExpansionResolver;
 import org.apache.beam.sdk.transforms.PTransform;
 import org.apache.beam.sdk.transforms.ParDo;
 import org.apache.beam.sdk.values.PCollection;
-import org.apache.beam.vendor.grpc.v1p26p0.com.google.protobuf.ByteString;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class PythonTransform extends PTransform<PCollection<String>, PCollection<String>> {
+  private static final Logger LOG = LoggerFactory.getLogger(PythonTransform.class);
 
   private final String host;
   private final Integer port;
@@ -45,7 +46,13 @@ public class PythonTransform extends PTransform<PCollection<String>, PCollection
     //        ExpansionResolver.getPythonPTransformCode(
     //            input, "talend:labs:ml:genreclassifier:python:v1", new byte[0], "localhost:9097");
     //    return input.apply(ParDo.of(new InvokeViaSdkHarnessDoFn(pythonTransformPayload)));
-    return input.apply(
-        ParDo.of(new InvokeViaSocketsDoFn(host, port, code, requirements, serverInvokerPath)));
+    if (serverInvokerPath != null) {
+      LOG.info("Execute Python code via Python server");
+      return input.apply(
+          ParDo.of(new InvokeViaSocketsDoFn(host, port, code, requirements, serverInvokerPath)));
+    } else {
+      LOG.info("Execute Python code via Jython");
+      return input.apply(ParDo.of(new InvokeViaJythonDoFn(code)));
+    }
   }
 }
