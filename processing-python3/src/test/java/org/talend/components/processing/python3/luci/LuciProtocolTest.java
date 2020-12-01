@@ -45,7 +45,7 @@ import static org.hamcrest.Matchers.notNullValue;
 class LuciProtocolTest {
 
     /** This is the source of truth for the generated code. */
-    private static final Path PROTOCOL_AVSC = Paths.get("lucidoitdoit", "lucidoitdoit", "protocol.avsc");
+    private static final Path PROTOCOL_AVSC = Paths.get("src", "main", "python", "lucidoitdoit", "protocol.avsc");
 
     /** Follow up from the current working directory until the PROTOCOL_AVSC can be found. */
     private Path findProtocol() {

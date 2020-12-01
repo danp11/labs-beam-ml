@@ -17,7 +17,7 @@
     <!-- Lolz the Tacokit validation excludes Beam -->
     <validation.model>false</validation.model>
     <avro.version>1.8.2</avro.version>
-    <lucidoitdoit.project.basedir>${project.basedir}/../lucidoitdoit/</lucidoitdoit.project.basedir>
+    <lucidoitdoit.project.basedir>${project.basedir}/src/main/python</lucidoitdoit.project.basedir>
   </properties>
 
   <dependencies>
@@ -67,7 +67,7 @@
         <directory>src/main/resources</directory>
       </resource>
       <resource>
-        <directory>../lucidoitdoit/dist</directory>
+        <directory>${lucidoitdoit.project.basedir}/dist</directory>
         <includes>
           <include>*.whl</include>
         </includes>
@@ -83,11 +83,10 @@
             <phase>generate-sources</phase>
             <goals>
               <goal>schema</goal>
-              <goal>protocol</goal>
               <goal>idl-protocol</goal>
             </goals>
             <configuration>
-              <sourceDirectory>${lucidoitdoit.project.basedir}</sourceDirectory>
+              <sourceDirectory>${lucidoitdoit.project.basedir}/lucidoitdoit</sourceDirectory>
             </configuration>
           </execution>
         </executions>
