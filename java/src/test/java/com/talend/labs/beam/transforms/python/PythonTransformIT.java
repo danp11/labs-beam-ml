@@ -16,7 +16,6 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
 
-@Ignore
 @RunWith(JUnit4.class)
 @Ignore
 public class PythonTransformIT {
