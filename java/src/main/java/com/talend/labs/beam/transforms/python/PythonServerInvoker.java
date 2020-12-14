@@ -87,10 +87,10 @@ class PythonServerInvoker {
       if (WAIT_FOR_SOCKET) {
         RunningProcess runningProcess =
             processManager.startProcess(
-                processId, serverInvokerPath, Collections.singletonList(this.uid), env);
+                processId, serverInvokerPath, Arrays.asList("start", this.uid), env);
 
         // Wait until the socket file appears and then read it
-        Path socket = Paths.get("/tmp", uid, "lucidoitdoit.socket");
+        Path socket = Paths.get("/tmp", "luci", uid, ".socket");
         LOG.debug("Trying to read socket info at " + socket);
         int attempts = 60;
         while (attempts-- > 0) {
@@ -109,7 +109,8 @@ class PythonServerInvoker {
           //TODO should we clean up the environment here?
           throw new RuntimeException("Could not find available python server socket");
         }
-        runningProcess.isAliveOrThrow();
+        // The process exits by itself, running python in the background
+        // runningProcess.isAliveOrThrow();
       } else {
         this.port = findFreePort();
         RunningProcess runningProcess =

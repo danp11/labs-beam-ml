@@ -67,6 +67,7 @@ class InvokeViaSocketsDoFn extends DoFn<String, String> {
 
   @Teardown
   public void teardown() {
-    client.close();
+    if (client != null)
+      client.close();
   }
 }
